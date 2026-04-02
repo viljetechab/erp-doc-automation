@@ -28,21 +28,17 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Backend Dependencies
+      - name: Install Backend Dependencies (for validation only)
         working-directory: backend
         run: pip install -r requirements.txt
 
-      # (Optional but safer for Azure detection)
-      - name: Add startup file
-        run: |
-          echo "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app" > backend/startup.txt
-
-      - name: Deploy Backend
+      - name: Deploy Backend (with build enabled)
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ github.ref_name == 'main' && 'erp-doc-automation-prod-be' || 'erp-doc-automation-dev-be' }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BE }}
           package: backend
+          enable-oryx-build: true
 
       # -----------------------------
       # FRONTEND (Vite)
@@ -58,7 +54,7 @@ jobs:
         run: |
           echo "VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL }}" > frontend/.env
 
-      - name: Install Dependencies
+      - name: Install Frontend Dependencies
         working-directory: frontend
         run: npm install
 
