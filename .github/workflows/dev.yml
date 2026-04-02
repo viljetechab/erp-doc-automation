@@ -6,49 +6,45 @@ on:
       - dev
 
 jobs:
-  deploy-backend:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      # -----------------------------
+      # Checkout Code
+      # -----------------------------
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      # -----------------------------
+      # BACKEND SETUP (FastAPI)
+      # -----------------------------
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install Backend Dependencies
         run: |
           cd backend
           pip install -r requirements.txt
-
-      - name: Zip backend
-        run: |
-          cd backend
-          zip -r backend.zip .
 
       - name: Deploy Backend to Azure
         uses: azure/webapps-deploy@v3
         with:
           app-name: erp-doc-automation-dev-be
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BE }}
-          package: backend/backend.zip
+          package: backend
 
-  deploy-frontend:
-    runs-on: ubuntu-latest
-    needs: deploy-backend
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node
+      # -----------------------------
+      # FRONTEND SETUP (Vite)
+      # -----------------------------
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
 
-      - name: Install & Build Vite App
+      - name: Install & Build Frontend
         run: |
           cd frontend
           npm install
@@ -59,4 +55,4 @@ jobs:
         with:
           app-name: erp-doc-automation-dev-fe
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_FE }}
-          package: frontend/dist
+          package: frontend
