@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 272 64" fill="none" role="img" aria-labelledby="logoTitle logoDesc">
+  <title id="logoTitle">OrderFlow Pro</title>
+  <desc id="logoDesc">OrderFlow Pro logo</desc>
+  <defs>
+    <linearGradient id="logoPanel" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3156D3"/>
+      <stop offset="1" stop-color="#1F3FAF"/>
+    </linearGradient>
+    <linearGradient id="logoAccent" x1="54" y1="20" x2="82" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22C55E"/>
+      <stop offset="1" stop-color="#14B8A6"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="8" y="8" width="44" height="48" rx="14" fill="url(#logoPanel)"/>
+  <path d="M20 22H40" stroke="white" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M20 31H36" stroke="white" stroke-width="3.2" stroke-linecap="round" opacity=".88"/>
+  <path d="M20 40H31" stroke="white" stroke-width="3.2" stroke-linecap="round" opacity=".72"/>
+
+  <path d="M58 32H74" stroke="#1F3FAF" stroke-width="3.6" stroke-linecap="round"/>
+  <path d="M68 24L76 32L68 40" stroke="url(#logoAccent)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g transform="translate(92 16)">
+    <text x="0" y="22" fill="#16324A" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24" font-weight="800" letter-spacing="-0.03em">
+      OrderFlow
+    </text>
+    <rect x="132" y="4" width="40" height="22" rx="11" fill="#E8F1FF"/>
+    <text x="152" y="19" fill="#3156D3" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11" font-weight="800" text-anchor="middle" letter-spacing="0.14em">
+      PRO
+    </text>
+  </g>
+</svg>

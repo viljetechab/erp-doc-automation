@@ -1,0 +1,41 @@
+# Core
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+pydantic[email]>=2.10.0
+pydantic-settings>=2.7.0
+python-multipart>=0.0.18
+
+# Database
+sqlalchemy[asyncio]>=2.0.36
+aiosqlite>=0.20.0
+asyncpg>=0.30.0
+alembic>=1.14.0
+
+# AI / Extraction
+openai>=1.78.0
+PyMuPDF>=1.25.0
+
+# XML
+lxml>=5.3.0
+
+# Logging
+structlog>=24.4.0
+
+# HTTP
+httpx>=0.28.0
+
+# Auth — PyJWT replaces python-jose (CVE-2024-33664)
+PyJWT[crypto]>=2.9.0
+bcrypt>=4.2.0
+
+# Rate limiting
+slowapi>=0.1.9
+
+# Excel parsing
+openpyxl>=3.1.0
+
+# Azure Blob Storage
+azure-storage-blob>=12.19.0
+
+# WSGI/ASGI server (production)
+gunicorn>=21.2.0
