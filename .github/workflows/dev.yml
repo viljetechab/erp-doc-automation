@@ -29,9 +29,13 @@ jobs:
           python-version: '3.11'
 
       - name: Install Backend Dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      # (Optional but safer for Azure detection)
+      - name: Add startup file
         run: |
-          cd backend
-          pip install -r requirements.txt
+          echo "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app" > backend/startup.txt
 
       - name: Deploy Backend
         uses: azure/webapps-deploy@v3
@@ -47,16 +51,20 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Create Frontend ENV
         run: |
           echo "VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL }}" > frontend/.env
 
-      - name: Install & Build Frontend
-        run: |
-          cd frontend
-          npm install
-          npm run build
+      - name: Install Dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Build Frontend
+        working-directory: frontend
+        run: npm run build
 
       - name: Deploy Frontend
         uses: azure/webapps-deploy@v3
