@@ -6,12 +6,13 @@ import sys
 packages = [
     "structlog",
     "pydantic-settings",
-    "aiosqlite",
+    "asyncpg",
     "python-multipart",
     "openai",
     "PyMuPDF",
     "lxml",
     "httpx",
+    "alembic",
 ]
 
 for pkg in packages:

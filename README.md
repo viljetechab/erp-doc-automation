@@ -22,8 +22,12 @@ OrderFlow Pro is an AI-powered order intake pipeline:
 ```bash
 cd backend
 cp .env.example .env
-# Fill in OPENAI_API_KEY and MICROSOFT_* OAuth credentials
+# Fill in DATABASE_URL, OPENAI_API_KEY, and MICROSOFT_* OAuth credentials
 pip install -r requirements.txt
+
+# Initialise the database schema
+alembic upgrade head
+
 uvicorn app.main:app --reload
 ```
 

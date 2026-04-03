@@ -38,8 +38,12 @@ class Settings(BaseSettings):
 
     # ── Database ─────────────────────────────────────────────────────────
     database_url: str = Field(
-        default="sqlite+aiosqlite:///./data/orderflow_pro.db",
-        description="SQLAlchemy async database URL",
+        default="postgresql+asyncpg://localhost:5432/orderflow_pro",
+        description=(
+            "SQLAlchemy async database URL. "
+            "Production/staging must use PostgreSQL (postgresql+asyncpg://...). "
+            "SQLite (sqlite+aiosqlite://...) is only permitted in development and test."
+        ),
     )
 
     # ── OpenAI (standard — used in development / local) ──────────────────
@@ -187,8 +191,8 @@ class Settings(BaseSettings):
         return v
 
     @model_validator(mode="after")
-    def validate_jwt_secret_in_production(self) -> "Settings":
-        """Reject insecure JWT defaults in non-development environments."""
+    def validate_production_settings(self) -> "Settings":
+        """Reject unsafe defaults in non-development environments."""
         if self.app_env not in ("development", "test"):
             if self.jwt_secret_key == _INSECURE_JWT_DEFAULT:
                 raise ValueError(
@@ -198,6 +202,12 @@ class Settings(BaseSettings):
             if len(self.jwt_secret_key) < _MIN_JWT_SECRET_LENGTH:
                 raise ValueError(
                     f"JWT_SECRET_KEY must be at least {_MIN_JWT_SECRET_LENGTH} characters."
+                )
+            if self.is_sqlite:
+                raise ValueError(
+                    "SQLite is not supported in production/staging. "
+                    "Set DATABASE_URL to a PostgreSQL connection string "
+                    "(e.g. postgresql+asyncpg://user:pass@host:5432/dbname)."
                 )
         return self
 

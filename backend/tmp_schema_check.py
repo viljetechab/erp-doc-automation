@@ -1,4 +1,4 @@
-"""Quick script to check the articles table schema."""
+"""Dev utility — inspect the articles table schema against a live PostgreSQL database."""
 
 import asyncio
 from app.db.session import engine

@@ -24,10 +24,10 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import AsyncSessionLocal
+from app.db.session import async_session_factory as AsyncSessionLocal
 from app.db.init_db import init_db
 from app.models.customer import Customer
-from app.models.order import Order, LineItem, OrderStatus
+from app.models.order import Order, OrderLineItem, OrderStatus
 from app.models.user import User
 
 logger = structlog.get_logger(__name__)
@@ -346,7 +346,7 @@ async def seed_demo_data(db: AsyncSession) -> None:
         await db.flush()
 
         for li in o["line_items"]:
-            line_item = LineItem(
+            line_item = OrderLineItem(
                 id=str(uuid.uuid4()),
                 order_id=order.id,
                 row_number=li["row_number"],

@@ -16,33 +16,30 @@ from app.api.deps import get_settings, get_db, get_current_user
 # --- App configuration ---
 
 @pytest.fixture
-def mock_settings() -> Settings:
+def mock_settings(tmp_path) -> Settings:
     return Settings(
-        environment="test",
+        app_env="test",
         database_url="sqlite+aiosqlite:///:memory:",
-        jwt_secret_key="secret",
+        jwt_secret_key="test-secret-key-that-is-long-enough-for-validation",
         jwt_algorithm="HS256",
         jwt_access_token_expire_minutes=15,
         jwt_refresh_token_expire_days=7,
-        google_client_id="g_id",
-        google_client_secret="g_secret",
         microsoft_client_id="m_id",
         microsoft_client_secret="m_secret",
         microsoft_tenant_id="m_tenant",
-        frontend_url="http://localhost:5173",
         openai_api_key="test-key",
         openai_model="gpt-4o",
         openai_max_tokens=4000,
         monitor_erp_base_url="http://erp",
         monitor_erp_api_key="erp-key",
-        upload_dir="/tmp",
-        max_upload_size_bytes=1048576,
+        upload_dir=str(tmp_path / "uploads"),
+        max_upload_size_mb=1,
         supplier_name="Test Supplier",
         supplier_edi_code="1234",
         supplier_street="123 Test St",
         supplier_zip_city="12345 Test City",
         supplier_country="Demo Country",
-        cors_origins=["http://localhost:5173"]
+        cors_origins=["http://localhost:5173"],
     )
 
 @pytest.fixture

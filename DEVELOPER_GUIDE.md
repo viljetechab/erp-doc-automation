@@ -5,7 +5,7 @@
 ```
 ┌─────────────┐    ┌──────────────┐    ┌───────────────┐    ┌──────────────┐
 │  PDF Upload  │───▶│ GPT-4o Vision│───▶│  Order Model  │───▶│ ORDERS420 XML│
-│  (Frontend)  │    │ (Extraction) │    │  (SQLite DB)  │    │  (Generator) │
+│  (Frontend)  │    │ (Extraction) │    │ (PostgreSQL)  │    │  (Generator) │
 └─────────────┘    └──────────────┘    └───────────────┘    └──────────────┘
      React +           OpenAI API         SQLAlchemy ORM      lxml etree
      Vite              PyMuPDF            Pydantic schemas     ERP System format
@@ -17,7 +17,7 @@
 | ----------- | ------------------------------------------ |
 | Frontend    | React 18 + TypeScript, Vite, Axios, Lucide |
 | Backend     | FastAPI, Uvicorn, Pydantic, Structlog      |
-| Database    | SQLite + SQLAlchemy (async via aiosqlite)  |
+| Database    | PostgreSQL + SQLAlchemy (async via asyncpg) |
 | AI          | OpenAI GPT-4o Vision API                   |
 | XML         | lxml (generates Monitor ORDERS420 format)  |
 | PDF parsing | PyMuPDF (converts PDF pages to images)     |
@@ -168,7 +168,7 @@ SUPPLIER_EDI_CODE=0000000       # SupplierCodeEdi attribute
 SUPPLIER_STREET=1 Business Street
 SUPPLIER_ZIP_CITY=00000 DEMO CITY
 SUPPLIER_COUNTRY=Sverige
-DATABASE_URL=sqlite+aiosqlite:///./data/orderflow_pro.db
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/orderflow_pro
 ```
 
 ---
@@ -239,15 +239,15 @@ PENDING_EXTRACTION → EXTRACTED → IN_REVIEW → APPROVED
 
 ### Q: How do you handle concurrent edits?
 
-**A:** Currently single-user. SQLite with WAL mode handles sequential writes. For multi-user, would need optimistic locking (version column + `If-Match` header).
+**A:** Currently single-user. PostgreSQL handles concurrent writes natively. For multi-user, would need optimistic locking (version column + `If-Match` header).
 
 ### Q: What about performance with large PDFs?
 
 **A:** PyMuPDF processes one page at a time. Images are sent individually to OpenAI. For very large PDFs (>10 pages), extraction time increases linearly. The 5-minute frontend timeout accommodates this.
 
-### Q: Why SQLite and not PostgreSQL?
+### Q: Why PostgreSQL?
 
-**A:** SQLite is sufficient for the current single-user, low-volume use case. The SQLAlchemy ORM layer makes migration to PostgreSQL a one-line config change (`DATABASE_URL`).
+**A:** PostgreSQL is the production database. It provides proper concurrency, ACID transactions, and is required for deployment. SQLite is only supported as a convenience for local development with `APP_ENV=development`. Schema management uses Alembic migrations (`alembic upgrade head`).
 
 ### Q: How is the XML validated?
 
