@@ -149,8 +149,14 @@ class Settings(BaseSettings):
             "http://localhost:5173",
             "http://localhost:5174",
             "http://localhost:3000",
+            # Staging — override via CORS_ORIGINS in Azure App Service for other hosts
+            "https://erp-doc-automation-dev-fe-hccze9hedha0g7gc.swedencentral-01.azurewebsites.net",
         ],
-        description="Allowed CORS origins",
+        description=(
+            "Allowed CORS origins (scheme + host + port). Required for credentialed "
+            "browser requests (cookies). Set CORS_ORIGINS in production if the frontend "
+            "URL is not listed here."
+        ),
     )
 
     # ── File Storage ─────────────────────────────────────────────────────

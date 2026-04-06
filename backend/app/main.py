@@ -59,7 +59,7 @@ async def security_headers_middleware(request: Request, call_next: object) -> Re
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan — runs on startup and shutdown."""
     settings = get_settings()
-    logger.info("application_starting", env=settings.app_env)
+    logger.info("application_starting", env=settings.app_env, cors_origins=settings.cors_origins)
 
     if settings.app_debug and settings.app_env != "development":
         logger.warning(
@@ -103,7 +103,10 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
-    # CORS — must come before security headers so credentials work
+    # CORS — must come before security headers so credentials work.
+    # With withCredentials/cookies, browsers require Access-Control-Allow-Credentials: true
+    # and an explicit origin (not *). If preflight shows ACAC empty on Azure App Service,
+    # clear API → CORS origins in the Azure Portal so platform CORS does not override this.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
