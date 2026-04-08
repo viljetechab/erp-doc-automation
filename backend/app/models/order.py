@@ -112,6 +112,16 @@ class Order(UUIDMixin, TimestampMixin, Base):
         String(50), nullable=True
     )  # "success" | "failed"
 
+    # ── Ownership ────────────────────────────────────────────────────────
+    # Nullable so that pre-existing rows (before this column was added) are
+    # not broken.  SET NULL on user deletion preserves the order record.
+    uploaded_by_user_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # ── Relationships ────────────────────────────────────────────────────
     line_items: Mapped[list[OrderLineItem]] = relationship(
         "OrderLineItem",

@@ -136,7 +136,7 @@ def _assert_path_within_upload_dir(file_path: Path, upload_dir: str) -> None:
 async def upload_pdf(
     file: UploadFile = File(..., description="PDF order file to parse"),
     *,
-    _current_user: CurrentUserDep,
+    current_user: CurrentUserDep,
     db: DbSessionDep,
     settings: SettingsDep,
     extraction_service: PDFExtractionDep,
@@ -199,6 +199,7 @@ async def upload_pdf(
                 source_filename=file.filename or "unknown.pdf",
                 source_filepath=unique_name,  # blob name, not a local path
                 raw_json=raw_json,
+                uploaded_by_user_id=current_user.id,
             )
         except AppError:
             raise
@@ -209,6 +210,7 @@ async def upload_pdf(
                     source_filename=file.filename or "unknown.pdf",
                     source_filepath=unique_name,
                     error_message=str(exc),
+                    uploaded_by_user_id=current_user.id,
                 )
             except Exception as persist_exc:
                 logger.error("failed_order_persist_error", error=str(persist_exc))
@@ -248,6 +250,7 @@ async def upload_pdf(
                 source_filename=file.filename or "unknown.pdf",
                 source_filepath=str(file_path),
                 raw_json=raw_json,
+                uploaded_by_user_id=current_user.id,
             )
         except AppError:
             raise
@@ -258,6 +261,7 @@ async def upload_pdf(
                     source_filename=file.filename or "unknown.pdf",
                     source_filepath=str(file_path),
                     error_message=str(exc),
+                    uploaded_by_user_id=current_user.id,
                 )
             except Exception as persist_exc:
                 logger.error("failed_order_persist_error", error=str(persist_exc))
@@ -296,15 +300,15 @@ async def upload_pdf(
 @router.get("", response_model=list[OrderListItem])
 async def list_orders(
     order_service: OrderServiceDep,
-    _current_user: CurrentUserDep,
+    current_user: CurrentUserDep,
     status: OrderStatus | None = Query(None, description="Filter by status"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> list[OrderListItem]:
-    """List all orders with optional status filter."""
+    """List orders uploaded by the authenticated user."""
     try:
         orders = await order_service.list_orders(
-            status=status, limit=limit, offset=offset
+            status=status, limit=limit, offset=offset, user_id=current_user.id
         )
         return [
             OrderListItem(
@@ -333,11 +337,11 @@ async def list_orders(
 async def get_order(
     order_id: str,
     order_service: OrderServiceDep,
-    _current_user: CurrentUserDep,
+    current_user: CurrentUserDep,
 ) -> OrderResponse:
     """Get a single order by ID with full details."""
     try:
-        order = await order_service.get_by_id(order_id)
+        order = await order_service.get_by_id(order_id, owner_id=current_user.id)
         return _build_order_response(order, order_service)
     except AppError:
         raise
@@ -351,10 +355,12 @@ async def update_order(
     order_id: str,
     update: OrderUpdateRequest,
     order_service: OrderServiceDep,
-    _current_user: CurrentUserDep,
+    current_user: CurrentUserDep,
 ) -> OrderResponse:
     """Update order fields during review."""
     try:
+        # Ownership guard before mutating
+        await order_service.get_by_id(order_id, owner_id=current_user.id)
         order = await order_service.update_order(order_id, update)
         return _build_order_response(order, order_service)
     except AppError:
@@ -368,7 +374,7 @@ async def update_order(
 async def delete_order(
     order_id: str,
     order_service: OrderServiceDep,
-    _current_user: CurrentUserDep,
+    current_user: CurrentUserDep,
 ) -> Response:
     """Delete an order record and its associated file (#24).
 
@@ -376,7 +382,7 @@ async def delete_order(
     to prevent accidental deletion of orders under review.
     """
     try:
-        order = await order_service.get_by_id(order_id)
+        order = await order_service.get_by_id(order_id, owner_id=current_user.id)
         deletable_statuses = {OrderStatus.EXTRACTION_FAILED, OrderStatus.REJECTED}
         if order.status not in deletable_statuses:
             raise AppError(
@@ -399,11 +405,11 @@ async def approve_order(
     order_id: str,
     order_service: OrderServiceDep,
     xml_service: XMLGeneratorDep,
-    _current_user: CurrentUserDep,
+    current_user: CurrentUserDep,
 ) -> OrderApproveResponse:
     """Approve an order: generate Monitor XML and persist."""
     try:
-        order = await order_service.get_by_id(order_id)
+        order = await order_service.get_by_id(order_id, owner_id=current_user.id)
         xml_string = xml_service.generate(order)
         order = await order_service.approve_order(order_id, xml_string)
 
@@ -424,10 +430,11 @@ async def approve_order(
 async def reject_order(
     order_id: str,
     order_service: OrderServiceDep,
-    _current_user: CurrentUserDep,
+    current_user: CurrentUserDep,
 ) -> OrderResponse:
     """Reject an order — returns it for editing and re-approval."""
     try:
+        await order_service.get_by_id(order_id, owner_id=current_user.id)
         order = await order_service.reject_order(order_id)
         return _build_order_response(order, order_service)
     except AppError:
@@ -441,11 +448,11 @@ async def reject_order(
 async def download_xml(
     order_id: str,
     order_service: OrderServiceDep,
-    _current_user: CurrentUserDep,
+    current_user: CurrentUserDep,
 ) -> Response:
     """Download the generated Monitor XML for an approved order."""
     try:
-        order = await order_service.get_by_id(order_id)
+        order = await order_service.get_by_id(order_id, owner_id=current_user.id)
 
         if not order.generated_xml:
             raise FileValidationError(
@@ -469,7 +476,7 @@ async def download_xml(
 async def serve_pdf(
     order_id: str,
     order_service: OrderServiceDep,
-    _current_user: CurrentUserDep,
+    current_user: CurrentUserDep,
     settings: SettingsDep,
 ) -> Response:
     """Serve the original uploaded PDF for preview.
@@ -479,7 +486,7 @@ async def serve_pdf(
     - Local filesystem: serves the file via FileResponse (with path traversal guard).
     """
     try:
-        order = await order_service.get_by_id(order_id)
+        order = await order_service.get_by_id(order_id, owner_id=current_user.id)
         safe_name = quote(order.source_filename, safe="")
 
         if settings.use_azure_storage:
@@ -533,11 +540,11 @@ async def preview_xml(
     order_id: str,
     order_service: OrderServiceDep,
     xml_service: XMLGeneratorDep,
-    _current_user: CurrentUserDep,
+    current_user: CurrentUserDep,
 ) -> Response:
     """Generate XML preview without persisting — for side-by-side comparison."""
     try:
-        order = await order_service.get_by_id(order_id)
+        order = await order_service.get_by_id(order_id, owner_id=current_user.id)
         xml_string = xml_service.generate(order)
 
         return Response(
@@ -562,11 +569,11 @@ async def push_to_erp(
     xml_generator: XMLGeneratorDep,
     settings: SettingsDep,
     db: DbSessionDep,
-    _current_user: CurrentUserDep,
+    current_user: CurrentUserDep,
 ) -> ERPPushResponse:
     """Push the order XML to ERP System."""
     try:
-        order = await order_service.get_by_id(order_id)
+        order = await order_service.get_by_id(order_id, owner_id=current_user.id)
 
         if not order.generated_xml:
             order.generated_xml = xml_generator.generate(order)

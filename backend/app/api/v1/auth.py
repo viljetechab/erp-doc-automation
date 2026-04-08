@@ -1,5 +1,9 @@
 """Auth API routes — email/password, Microsoft OAuth, token refresh, logout.
 
+Do not use ``from __future__ import annotations`` in this module: with FastAPI
+0.115 and SlowAPI's ``@limiter.limit``, postponed evaluation breaks JSON body
+binding on these routes (422 responses expecting body fields in the query).
+
 Token storage:
   Tokens are set as HttpOnly, SameSite=Lax cookies by the backend.
   JavaScript cannot read HttpOnly cookies — XSS cannot steal them.
@@ -9,8 +13,6 @@ Token storage:
 
   Secure=False in development (http). Secure=True everywhere else.
 """
-
-from __future__ import annotations
 
 import secrets
 
@@ -72,16 +74,16 @@ def _clear_auth_cookies(response: Response) -> None:
 @limiter.limit("5/minute")
 async def register(
     request: Request,
-    body: RegisterRequest,
+    payload: RegisterRequest,
     auth_service: AuthServiceDep,
     settings: SettingsDep,
 ) -> Response:
     """Create a new local account."""
     try:
         access, refresh, _, user = await auth_service.register(
-            email=body.email,
-            password=body.password,
-            display_name=body.display_name,
+            email=payload.email,
+            password=payload.password,
+            display_name=payload.display_name,
             secret_key=settings.jwt_secret_key,
             algorithm=settings.jwt_algorithm,
             access_expire_minutes=settings.jwt_access_token_expire_minutes,
@@ -109,15 +111,15 @@ async def register(
 @limiter.limit("10/minute")
 async def login(
     request: Request,
-    body: EmailPasswordLoginRequest,
+    payload: EmailPasswordLoginRequest,
     auth_service: AuthServiceDep,
     settings: SettingsDep,
 ) -> Response:
     """Sign in with email and password."""
     try:
         access, refresh, _, user = await auth_service.login_with_password(
-            email=body.email,
-            password=body.password,
+            email=payload.email,
+            password=payload.password,
             secret_key=settings.jwt_secret_key,
             algorithm=settings.jwt_algorithm,
             access_expire_minutes=settings.jwt_access_token_expire_minutes,
@@ -265,14 +267,14 @@ async def microsoft_auth_url(oauth_service: OAuthServiceDep) -> dict:
 @limiter.limit("10/minute")
 async def microsoft_callback(
     request: Request,
-    body: OAuthCallbackRequest,
+    payload: OAuthCallbackRequest,
     auth_service: AuthServiceDep,
     oauth_service: OAuthServiceDep,
     settings: SettingsDep,
 ) -> Response:
     try:
-        _consume_oauth_state(body.state, "microsoft")
-        user_info = await oauth_service.exchange_microsoft_code(body.code)
+        _consume_oauth_state(payload.state, "microsoft")
+        user_info = await oauth_service.exchange_microsoft_code(payload.code)
         email = user_info.get("mail") or user_info.get("userPrincipalName")
         if not email:
             raise AuthenticationError("Microsoft did not provide an email address.")

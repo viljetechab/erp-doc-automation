@@ -24,36 +24,49 @@ from app.schemas.article_import import ArticleImportResponse
 logger = structlog.get_logger(__name__)
 
 _SWEDISH_TO_DB: dict[str, str] = {
-    "article_number": "article_number",
+    # ── Article number ────────────────────────────────────────────────────
+    "artikelnummer": "artikelnummer",
+    # ── Article description (ERP exports use ä; accept both spellings) ───
+    "artikelbenämning": "artikelbenamning",   # ERP System native export
+    "artikelbenamning": "artikelbenamning",   # ASCII fallback / DB name
     "article_name": "artikelbenamning",
-    "artikelbenamning": "artikelbenamning",
+    # ── Type / category / code ────────────────────────────────────────────
     "artikeltyp": "artikel_typ_id",
     "artikel_typ_id": "artikel_typ_id",
-    "standardpris": "standardpris",
-    "totalt saldo": "saldo_varde",
-    "saldo_varde": "saldo_varde",
-    "saldohanteras": "saldohanteras",
     "artikelkategori": "artikel_kategori_id",
     "artikel_kategori_id": "artikel_kategori_id",
     "artikelkod": "artikel_kod_id",
     "artikel_kod_id": "artikel_kod_id",
     "varugrupp": "varugrupp_id",
     "varugrupp_id": "varugrupp_id",
-    "ursprungsland": "ursprungsland",
     "status": "artikel_status_id",
     "artikel_status_id": "artikel_status_id",
+    # ── Pricing / stock ───────────────────────────────────────────────────
+    "standardpris": "standardpris",
+    "totalt saldo": "saldo_varde",
+    "saldo_varde": "saldo_varde",
+    "saldo enhet": "saldo_enhet",             # stock balance unit column
+    "saldo_enhet": "saldo_enhet",
+    "saldohanteras": "saldohanteras",
+    # ── Origin / weight ───────────────────────────────────────────────────
+    "ursprungsland": "ursprungsland",
     "nettovikt": "nettovikt_varde",
     "nettovikt_varde": "nettovikt_varde",
+    "nettovikt enhet": "nettovikt_enhet",
+    "nettovikt_enhet": "nettovikt_enhet",
     "fast vikt": "fast_vikt",
     "fast_vikt": "fast_vikt",
     "enhet": "enhet_id",
     "enhet_id": "enhet_id",
+    # ── Revision / drawing ────────────────────────────────────────────────
     "artikelrevision": "artikelrevision",
-    "extra benämning": "extra_benamning",
-    "extra benamning": "extra_benamning",
-    "extra_benamning": "extra_benamning",
     "ritningsnummer": "ritningsnummer",
     "ritningsrevision": "ritningsrevision",
+    # ── Extra description (ERP exports use ä; accept both spellings) ──────
+    "extra benämning": "extra_benamning",     # ERP System native export
+    "extra benamning": "extra_benamning",
+    "extra_benamning": "extra_benamning",
+    # ── Misc ──────────────────────────────────────────────────────────────
     "is_active": "is_active",
 }
 
@@ -151,7 +164,7 @@ def _parse_xlsx(raw_bytes: bytes) -> list[dict[str, str]]:
     header_idx = -1
     for i, row in enumerate(all_rows[:30]):
         cell_values = [str(c).strip().lower() for c in row if c]
-        if "article_number" in cell_values:
+        if "artikelnummer" in cell_values:
             header_idx = i
             break
 
@@ -183,7 +196,7 @@ def _parse_xlsx(raw_bytes: bytes) -> list[dict[str, str]]:
         if hdr and hdr in _SWEDISH_TO_DB:
             mapped_cols.append((idx, _SWEDISH_TO_DB[hdr]))
 
-    rows: list[dict[str, str]] = []
+        rows: list[dict[str, str]] = []
     for row_values in all_rows[header_idx + 1:]:
         if not any(row_values):
             continue
@@ -192,7 +205,7 @@ def _parse_xlsx(raw_bytes: bytes) -> list[dict[str, str]]:
             if col_idx < len(row_values):
                 val = row_values[col_idx]
                 row_dict[db_col] = str(val) if val is not None else ""
-        if row_dict.get("article_number", "").strip():
+        if row_dict.get("artikelnummer", "").strip():
             rows.append(row_dict)
 
     return rows
@@ -238,7 +251,7 @@ class ArticleImportService:
             return ArticleImportResponse(imported=0, skipped=0, updated=0, errors=[])
 
         first_row_keys = set(rows[0].keys())
-        if "article_number" not in first_row_keys:
+        if "artikelnummer" not in first_row_keys:
             if any(k in first_row_keys for k in ("kund", "namn")):
                 raise AppError(
                     "Wrong file — this looks like a Customer List (customer file). "
@@ -257,10 +270,10 @@ class ArticleImportService:
 
         try:
             result = await self._db.execute(
-                select(Article.id, Article.article_number),
+                select(Article.id, Article.artikelnummer),
             )
             existing_map: dict[str, int] = {
-                row.article_number: row.id for row in result.all()
+                row.artikelnummer: row.id for row in result.all()
             }
         except Exception as exc:
             raise AppError(f"Failed to load existing articles: {exc}") from exc
@@ -269,7 +282,7 @@ class ArticleImportService:
         batch_count = 0
 
         for idx, row in enumerate(rows, start=2):
-            art_nr = (row.get("article_number") or "").strip()
+            art_nr = (row.get("artikelnummer") or "").strip()
             if not art_nr:
                 skipped += 1
                 continue
@@ -277,7 +290,7 @@ class ArticleImportService:
             try:
                 parsed: dict[str, Any] = {}
                 for csv_col, model_attr in _COLUMN_MAP.items():
-                    if csv_col in row and csv_col != "article_number":
+                    if csv_col in row and csv_col != "artikelnummer":
                         val = _coerce_value(model_attr, row[csv_col])
                         if val is not None:
                             parsed[model_attr] = val
@@ -307,7 +320,7 @@ class ArticleImportService:
                                 break
                     if not name:
                         errors.append(
-                            f"Row {idx}: article_number '{art_nr}' skipped — "
+                            f"Row {idx}: artikelnummer '{art_nr}' skipped — "
                             f"missing artikelbenamning",
                         )
                         skipped += 1
@@ -317,7 +330,7 @@ class ArticleImportService:
                     # "multiple values for keyword argument" error
                     parsed.pop("artikelbenamning", None)
                     article = Article(
-                        article_number=art_nr,
+                        artikelnummer=art_nr,
                         artikelbenamning=name,
                         **parsed,
                     )

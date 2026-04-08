@@ -33,6 +33,7 @@ class OrderService:
         source_filename: str,
         source_filepath: str,
         raw_json: str,
+        uploaded_by_user_id: str | None = None,
     ) -> Order:
         """Create a new Order from extracted PDF data.
 
@@ -52,6 +53,7 @@ class OrderService:
             extraction_raw_json=raw_json,
             extraction_confidence_json=confidence_json,
             extraction_notes=extraction.extraction_notes,
+            uploaded_by_user_id=uploaded_by_user_id,
             # Header fields
             order_number=extraction.order_number,
             order_date=extraction.order_date,
@@ -124,6 +126,7 @@ class OrderService:
         source_filename: str,
         source_filepath: str,
         error_message: str,
+        uploaded_by_user_id: str | None = None,
     ) -> Order:
         """Create an order record when extraction fails, preserving the error."""
         order = Order(
@@ -131,6 +134,7 @@ class OrderService:
             source_filename=source_filename,
             source_filepath=source_filepath,
             extraction_error=error_message,
+            uploaded_by_user_id=uploaded_by_user_id,
         )
         try:
             self._db.add(order)
@@ -146,11 +150,21 @@ class OrderService:
         # Re-fetch with selectinload to avoid MissingGreenlet on serialization.
         return await self.get_by_id(order.id)
 
-    async def get_by_id(self, order_id: str) -> Order:
+    async def get_by_id(
+        self, order_id: str, *, owner_id: str | None = None
+    ) -> Order:
         """Fetch an order by ID with eagerly loaded line items.
 
+        Args:
+            order_id: UUID of the order to fetch.
+            owner_id: When provided, the order must have been uploaded by this
+                user.  Orders with ``uploaded_by_user_id=NULL`` (created before
+                the ownership column was introduced) are always returned so that
+                legacy data is not hidden.
+
         Raises:
-            NotFoundError: If the order does not exist.
+            NotFoundError: If the order does not exist or the caller does not
+                own it.
         """
         stmt = (
             select(Order)
@@ -166,6 +180,14 @@ class OrderService:
             ) from exc
         if order is None:
             raise NotFoundError("Order", order_id)
+        # Enforce ownership: if the order has an owner AND a caller was given,
+        # they must match.  NULL owners are accessible to everyone (legacy rows).
+        if (
+            owner_id is not None
+            and order.uploaded_by_user_id is not None
+            and order.uploaded_by_user_id != owner_id
+        ):
+            raise NotFoundError("Order", order_id)
         return order
 
     async def list_orders(
@@ -174,8 +196,15 @@ class OrderService:
         status: OrderStatus | None = None,
         limit: int = 50,
         offset: int = 0,
+        user_id: str | None = None,
     ) -> list[tuple[Order, int]]:
-        """List orders with precomputed line-item counts (newest first)."""
+        """List orders with precomputed line-item counts (newest first).
+
+        Args:
+            user_id: When provided, only orders uploaded by this user are
+                returned.  Omit (or pass ``None``) to return all orders (admin
+                use-case or internal callers).
+        """
         line_counts = (
             select(
                 OrderLineItem.order_id,
@@ -199,6 +228,8 @@ class OrderService:
         )
         if status is not None:
             stmt = stmt.where(Order.status == status)
+        if user_id is not None:
+            stmt = stmt.where(Order.uploaded_by_user_id == user_id)
 
         try:
             result = await self._db.execute(stmt)
